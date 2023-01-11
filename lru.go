@@ -15,10 +15,10 @@ type LRUCache struct {
 	ttl      int64                    //seconds ttl
 	lruList  *list.List               //list
 	lruMap   map[string]*list.Element //map
+	keyCount int64                    //current cache key counts
 
-	reqCount int64 //request counts
-	hitCount int64 //hit counts
-	keyCount int64 //current cache key counts
+	totalReqTimes int64 //total request times
+	totalHitTimes int64 //total hit times
 }
 
 type entry struct {
@@ -39,10 +39,7 @@ func NewLRUCache(maxCount int, ttl int) *LRUCache {
 
 func (cache *LRUCache) Update(key string, value interface{}) error {
 	cache.mutex.Lock()
-	defer func() {
-		cache.checkWithLocked()
-		cache.mutex.Unlock()
-	}()
+	defer cache.mutex.Unlock()
 	if ele, ok := cache.lruMap[key]; ok { //exist
 		item := ele.Value.(*entry)
 		item.value = value
@@ -56,21 +53,19 @@ func (cache *LRUCache) Update(key string, value interface{}) error {
 		}
 		cache.lruMap[key] = cache.lruList.PushBack(item)
 		cache.keyCount++
+		cache.checkWithLocked()
 	}
 	return nil
 }
 
 func (cache *LRUCache) Get(key string) (interface{}, error) {
 	cache.mutex.Lock()
-	defer func() {
-		cache.checkWithLocked()
-		cache.mutex.Unlock()
-	}()
-	cache.reqCount++
+	defer cache.mutex.Unlock()
+	cache.totalReqTimes++
 	if ele, ok := cache.lruMap[key]; ok {
 		item := ele.Value.(*entry)
 		if item.createAt+cache.ttl > time.Now().Unix() { //有效
-			cache.hitCount++
+			cache.totalHitTimes++
 			cache.lruList.MoveToBack(ele)
 			return item.value, nil
 		}
@@ -83,28 +78,23 @@ func (cache *LRUCache) Get(key string) (interface{}, error) {
 }
 
 func (cache *LRUCache) checkWithLocked() {
-	now := time.Now().Unix()
-	for cache.lruList.Front() != nil {
+	for cache.keyCount > cache.maxCount && cache.lruList.Front() != nil {
 		front := cache.lruList.Front()
 		e := front.Value.(*entry)
-		//key count not greater and key not expired
-		if cache.keyCount <= cache.maxCount && now < e.createAt+cache.ttl {
-			break
-		}
 		cache.lruList.Remove(front)
 		delete(cache.lruMap, e.key)
 		cache.keyCount--
 	}
 }
 
-func (cache *LRUCache) GetReqCount() int64 {
-	return cache.reqCount
-}
-
-func (cache *LRUCache) GetHitCount() int64 {
-	return cache.hitCount
-}
-
-func (cache *LRUCache) GetKeysCount() int64 {
+func (cache *LRUCache) GetKeyCount() int64 {
 	return cache.keyCount
+}
+
+func (cache *LRUCache) GetTotalReqTimes() int64 {
+	return cache.totalReqTimes
+}
+
+func (cache *LRUCache) GetTotalHitTimes() int64 {
+	return cache.totalHitTimes
 }
