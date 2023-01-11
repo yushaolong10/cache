@@ -77,6 +77,21 @@ func (cache *LRUCache) Get(key string) (interface{}, error) {
 	return nil, ErrLruNotFoundKey
 }
 
+func (cache *LRUCache) Delete(key string) error {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	cache.totalReqTimes++
+	if ele, ok := cache.lruMap[key]; ok {
+		cache.totalHitTimes++
+		item := ele.Value.(*entry)
+		cache.lruList.Remove(ele)
+		delete(cache.lruMap, item.key)
+		cache.keyCount--
+		return nil
+	}
+	return ErrLruNotFoundKey
+}
+
 func (cache *LRUCache) checkWithLocked() {
 	for cache.keyCount > cache.maxCount && cache.lruList.Front() != nil {
 		front := cache.lruList.Front()
