@@ -1,4 +1,4 @@
-package lru
+package cache
 
 import (
 	"container/list"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ErrLruNotFoundKey = errors.New("lru key not exist")
+var ErrKeyNotFound = errors.New("key not found")
 
 type LRUCache struct {
 	mutex    sync.Mutex
@@ -71,10 +71,10 @@ func (cache *LRUCache) Get(key string) (interface{}, error) {
 		}
 		//expire
 		cache.lruList.Remove(ele)
-		delete(cache.lruMap, item.key)
+		delete(cache.lruMap, key)
 		cache.keyCount--
 	}
-	return nil, ErrLruNotFoundKey
+	return nil, ErrKeyNotFound
 }
 
 func (cache *LRUCache) Delete(key string) error {
@@ -83,21 +83,20 @@ func (cache *LRUCache) Delete(key string) error {
 	cache.totalReqTimes++
 	if ele, ok := cache.lruMap[key]; ok {
 		cache.totalHitTimes++
-		item := ele.Value.(*entry)
 		cache.lruList.Remove(ele)
-		delete(cache.lruMap, item.key)
+		delete(cache.lruMap, key)
 		cache.keyCount--
 		return nil
 	}
-	return ErrLruNotFoundKey
+	return ErrKeyNotFound
 }
 
 func (cache *LRUCache) checkWithLocked() {
 	for cache.keyCount > cache.maxCount && cache.lruList.Front() != nil {
 		front := cache.lruList.Front()
-		e := front.Value.(*entry)
+		item := front.Value.(*entry)
 		cache.lruList.Remove(front)
-		delete(cache.lruMap, e.key)
+		delete(cache.lruMap, item.key)
 		cache.keyCount--
 	}
 }

@@ -1,2 +1,2 @@
-# lru
-simple implement of lru algorithm.
+# lru cache
+simple cache implement by lru algorithm.
